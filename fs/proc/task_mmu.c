@@ -377,7 +377,6 @@ show_map_vma(struct seq_file *m, struct vm_area_struct *vma, int is_pid)
 
 	if (file) {
 		struct inode *inode = file_inode(vma->vm_file);
-		struct dentry *dentry = file->f_path.dentry;
 #ifdef CONFIG_KSU_SUSFS_OPEN_REDIRECT
                if (SUSFS_IS_INODE_OPEN_REDIRECT(inode)) {
                        char *spoofed_redirected_name = NULL;
@@ -402,6 +401,7 @@ show_map_vma(struct seq_file *m, struct vm_area_struct *vma, int is_pid)
                if (SUSFS_IS_INODE_SUS_MAP(inode))
                        return;
 #endif // #ifdef CONFIG_KSU_SUSFS_SUS_MAP
+		struct dentry *dentry = file->f_path.dentry;
 		dev = inode->i_sb->s_dev;
 		ino = inode->i_ino;
 		pgoff = ((loff_t)vma->vm_pgoff) << PAGE_SHIFT;
