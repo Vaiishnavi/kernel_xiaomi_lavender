@@ -1,79 +1,96 @@
-#!/usr/bin/env bash
-echo "Cloning dependencies"
-git clone --depth=1 https://github.com/sohamxda7/llvm-stable  clang
-git clone https://github.com/sohamxda7/llvm-stable -b gcc64 --depth=1 gcc
-git clone https://github.com/sohamxda7/llvm-stable -b gcc32  --depth=1 gcc32
-git clone --depth=1 https://github.com/sohamxda7/AnyKernel3 AnyKernel
-echo "Done"
-IMAGE=$(pwd)/out/arch/arm64/boot/Image.gz-dtb
-TANGGAL=$(date +"%F-%S")
-START=$(date +"%s")
-KERNEL_DIR=$(pwd)
-PATH="${KERNEL_DIR}/clang/bin:${KERNEL_DIR}/gcc/bin:${KERNEL_DIR}/gcc32/bin:${PATH}"
-export KBUILD_COMPILER_STRING="$(${KERNEL_DIR}/clang/bin/clang --version | head -n 1 | perl -pe 's/\(http.*?\)//gs' | sed -e 's/  */ /g')"
-export ARCH=arm64
-export KBUILD_BUILD_HOST=circleci
-export KBUILD_BUILD_USER="sohamsen"
-# sticker plox
-function sticker() {
-    curl -s -X POST "https://api.telegram.org/bot$token/sendSticker" \
-        -d sticker="CAACAgEAAxkBAAEnKnJfZOFzBnwC3cPwiirjZdgTMBMLRAACugEAAkVfBy-aN927wS5blhsE" \
-        -d chat_id=$chat_id
-}
-# Send info plox channel
-function sendinfo() {
-    curl -s -X POST "https://api.telegram.org/bot$token/sendMessage" \
-        -d chat_id="$chat_id" \
-        -d "disable_web_page_preview=true" \
-        -d "parse_mode=html" \
-        -d text="<b>• Predator-Stormbreaker Kernel •</b>%0ABuild started on <code>Circle CI</code>%0AFor device <b>Xiaomi Redmi Note7/7S</b> (lavender)%0Abranch <code>$(git rev-parse --abbrev-ref HEAD)</code>(master)%0AUnder commit <code>$(git log --pretty=format:'"%h : %s"' -1)</code>%0AUsing compiler: <code>${KBUILD_COMPILER_STRING}</code>%0AStarted on <code>$(date)</code>%0A<b>Build Status:</b>#Stable"
-}
-# Push kernel to channel
-function push() {
-    cd AnyKernel
-    ZIP=$(echo *.zip)
-    curl -F document=@$ZIP "https://api.telegram.org/bot$token/sendDocument" \
-        -F chat_id="$chat_id" \
-        -F "disable_web_page_preview=true" \
-        -F "parse_mode=html" \
-        -F caption="Build took $(($DIFF / 60)) minute(s) and $(($DIFF % 60)) second(s). | For <b>Xiaomi Redmi Note 7/7s (lavender)</b> | <b>$(${GCC}gcc --version | head -n 1 | perl -pe 's/\(http.*?\)//gs' | sed -e 's/  */ /g')</b>"
-}
-# Fin Error
-function finerr() {
-    curl -s -X POST "https://api.telegram.org/bot$token/sendMessage" \
-        -d chat_id="$chat_id" \
-        -d "disable_web_page_preview=true" \
-        -d "parse_mode=markdown" \
-        -d text="Build throw an error(s)"
-    exit 1
-}
-# Compile plox
-function compile() {
-    make O=out ARCH=arm64 lavender-perf_defconfig
-    make -j$(nproc --all) O=out \
-                    ARCH=arm64 \
-                    CC=clang \
-                    CLANG_TRIPLE=aarch64-linux-gnu- \
-                    CROSS_COMPILE=aarch64-linux-android- \
-                    CROSS_COMPILE_ARM32=arm-linux-androideabi-
+#!/bin/sh
 
-    if ! [ -a "$IMAGE" ]; then
-        finerr
-        exit 1
+# Many parts of this script were taken from @REIGNZ, @idkwhoiam322 and @raphielscape . Huge thanks to them.
+
+# Some general variables
+PHONE="lavender"
+ARCH="arm64"
+SUBARCH="arm64"
+DEFCONFIG=lavender-perf_defconfig
+COMPILER=clang
+LINKER=""
+COMPILERDIR="$(pwd)/clang"
+
+# Outputs
+mkdir -p zone_lavender
+mkdir -p out
+
+# Export shits
+export KBUILD_BUILD_USER=Zone
+export KBUILD_BUILD_HOST=D543
+
+# Speed up build process
+MAKE="./makeparallel"
+
+# Basic build function
+BUILD_START=$(date +"%s")
+blue='\033[0;34m'
+cyan='\033[0;36m'
+yellow='\033[0;33m'
+red='\033[0;31m'
+nocol='\033[0m'
+
+Build () {
+PATH="${COMPILERDIR}/bin:${PATH}" \
+make -j$(nproc --all) O=out \
+ARCH=${ARCH} \
+LLVM=1 LLVM_IAS=1 \
+CC=${COMPILER} \
+CROSS_COMPILE=${COMPILERDIR}/bin/aarch64-linux-gnu- \
+CROSS_COMPILE_ARM32=${COMPILERDIR}/bin/arm-linux-gnueabi- \
+LD=ld.lld \
+HOSTCC=clang \
+HOSTLDFLAGS="-fuse-ld=lld" \
+AR=llvm-ar \
+NM=llvm-nm \
+OBJCOPY=llvm-objcopy \
+OBJDUMP=llvm-objdump \
+STRIP=llvm-strip \
+LD_LIBRARY_PATH=${COMPILERDIR}/lib 2>&1 | tee log.txt
+}
+
+# Make defconfig
+
+make O=out ARCH=${ARCH} ${DEFCONFIG}
+if [ $? -ne 0 ]
+then
+    echo "Build failed"
+else
+    echo "Made ${DEFCONFIG}"
+fi
+
+# Build starts here
+    #NSE
+    Build
+    if [ $? -ne 0 ]
+    then
+        echo "Build failed"
+        rm -rf out
+    else
+        echo "Build succesful"
     fi
-    cp out/arch/arm64/boot/Image.gz-dtb AnyKernel
-}
-# Zipping
-function zipping() {
-    cd AnyKernel || exit 1
-    zip -r9 Predator-Stormbreaker-lavender-${TANGGAL}.zip *
-    cd ..
-}
-sticker
-sendinfo
-compile
-zipping
-END=$(date +"%s")
-DIFF=$(($END - $START))
-push
 
+#Anykernel 
+if [ ! -d "AnyKernel3" ]; then
+            git clone -q https://github.com/diyantika/AnyKernel3.git -b Dipper-SE AnyKernel3
+        fi
+        
+Zipping () {
+       ZIPNAME="${PHONE}.zip"
+       cd AnyKernel3
+        git checkout Dipper-SE &> /dev/null
+        zip -r9 "../$ZIPNAME" * -x .git README.md *placeholder
+        cd ..
+        #Pindah Zip
+        mv "$ZIPNAME" zone_lavender/
+       }
+
+#NSE
+cp out/arch/arm64/boot/Image.gz-dtb AnyKernel3/
+Zipping "NSE"
+
+rm -rf AnyKernel3/
+
+BUILD_END=$(date +"%s")
+DIFF=$(($BUILD_END - $BUILD_START))
+echo -e "$yellow Build completed in $(($DIFF / 60)) minute(s) and $(($DIFF % 60)) seconds.$nocol"
