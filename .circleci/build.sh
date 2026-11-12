@@ -9,7 +9,12 @@ SUBARCH="arm64"
 DEFCONFIG=lavender-perf_defconfig
 COMPILER=clang
 LINKER=""
-COMPILERDIR="$(pwd)/clang"
+KERNEL_DIR="$(pwd)"
+
+# 
+git clone --depth=1 https://github.com/sohamxda7/llvm-stable  clang
+git clone https://github.com/sohamxda7/llvm-stable -b gcc64 --depth=1 gcc
+git clone https://github.com/sohamxda7/llvm-stable -b gcc32  --depth=1 gcc32
 
 # Outputs
 mkdir -p zone_lavender
@@ -31,22 +36,14 @@ red='\033[0;31m'
 nocol='\033[0m'
 
 Build () {
-PATH="${COMPILERDIR}/bin:${PATH}" \
+PATH="${KERNEL_DIR}/clang/bin:${KERNEL_DIR}/gcc/bin:${KERNEL_DIR}/gcc32/bin:${PATH}"  \
 make -j$(nproc --all) O=out \
 ARCH=${ARCH} \
 LLVM=1 LLVM_IAS=1 \
-CC=${COMPILER} \
-CROSS_COMPILE=${COMPILERDIR}/bin/aarch64-linux-gnu- \
-CROSS_COMPILE_ARM32=${COMPILERDIR}/bin/arm-linux-gnueabi- \
-LD=ld.lld \
-HOSTCC=clang \
-HOSTLDFLAGS="-fuse-ld=lld" \
-AR=llvm-ar \
-NM=llvm-nm \
-OBJCOPY=llvm-objcopy \
-OBJDUMP=llvm-objdump \
-STRIP=llvm-strip \
-LD_LIBRARY_PATH=${COMPILERDIR}/lib 2>&1 | tee log.txt
+                    CC=clang \
+                    CLANG_TRIPLE=aarch64-linux-gnu- \
+                    CROSS_COMPILE=aarch64-linux-android- \
+                    CROSS_COMPILE_ARM32=arm-linux-androideabi- 2>&1 | tee log.txt
 }
 
 # Make defconfig

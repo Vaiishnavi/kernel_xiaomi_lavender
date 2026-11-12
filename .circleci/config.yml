@@ -13,22 +13,6 @@ jobs:
            git submodule sync --recursive
            git submodule update --init --recursive --depth=1
 
-      - restore_cache:
-          key: clang-toolchain-v1-clang
-
-      - run:
-          name: Download clang toolchain
-          command: |
-           if [ ! -d clang ]; then
-            git clone --depth=1 https://github.com/kdrag0n/proton-clang.git clang
-           fi
-           ./clang/bin/clang --version
-
-      - save_cache:
-          key: clang-toolchain-v1-clang
-          paths:
-            - clang
-
       - run:
           command: bash .circleci/build.sh
 
